@@ -61,21 +61,28 @@ block([expressions, entry_0, dimension],
 taylor_expansion(expr, variables, order, position) :=
 /* Return a the Taylor expansion of degree ORDER for approximating
 EXPR(POSITION) at zero in VARIABLES */
-subst(
-  map(lambda([variable, offset], variable = offset), variables, position),
-  taylor(expr, variables, 0, order))$
+expand(
+  subst(
+    maplist(lambda([variable, offset], variable = offset), variables, position),
+    taylor(expr, variables, 0, order)))$
+
+mindegree(expr) :=
+block([pdiffs],
+  pdiffs : listofpdiffs(expr),
+  if emptyp(pdiffs) then 0 else lmin(maplist(pdiff_degree, pdiffs)))$
 
 taylor_term(expr, variables, order, position) :=
-apply("+",
-  sublist(
-    args(taylor_expansion(expr, variables, order, position)),
-    lambda([term],
-      apply(max, cons(0, maplist(pdiff_degree, listofpdiffs(term)))) = order)))$
+block([tterm],
+  tterm : taylor_expansion(expr, variables, order - mindegree(expr), position),
+  if not atom(tterm) and operatorp(tterm, "+") then (
+    apply("+",
+      sublist(args(tterm), lambda([term], mindegree(term) = order))))
+  elseif mindegree(tterm) = order then tterm else 0)$
 
 stencil_error([stencil]) :=
 block([err],
   stencil : normalize_stencil(stencil),
-  for order : 0 thru 5 do (
+  for order : 0 thru 10 do (
     err : 0,
     for stencil_part in stencil do block([expression, entries],
       expression : first(stencil_part),
@@ -86,4 +93,8 @@ block([err],
         err : err + weight * taylor_term(expression, [x], order, position))),
     if err # 0 then return(err)))$
 
-stencil_error([u(x), [a, -h], [b, 0], [a, h]]);
+block([a,b,c],
+  a : -1,
+  b : 2,
+  stencil_error([u(x), [a, -h], [b, 0], [a, h]], [diff(u(x), x, 2), [h*h, 0]]));
+
