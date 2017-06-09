@@ -1,0 +1,89 @@
+/* © 2017 Marco Heisig - licensed under GPLv3 */
+
+load("pdiff")$
+
+pdiff_p(expr) :=
+/* Whether EXPR is a partial derivative */
+not atom(expr) and not(atom(op(expr))) and operatorp(op(expr), pderivop)$
+
+listofpdiffs(expr) :=
+/* Return the list of all partial derivatives within EXPR */
+block([acc, rec],
+  acc : [],
+  rec(expr) := (
+    if atom(expr) then false
+    elseif pdiff_p(expr) then push(expr, acc)
+    else (rec(op(expr)), for arg in args(expr) do rec(arg))),
+  rec(expr),
+  acc)$
+
+pdiff_degree(pdiff) :=
+block(
+  if not pdiff_p(pdiff) then (
+    error(partial_derivative, "is not a partial derivative.")),
+  apply("+", rest(args(op(pdiff)))))$
+
+pdiff_dimension(pdiff) :=
+block(
+  if not pdiff_p(pdiff) then (
+    error(pdiff, "is not a partial derivative.")),
+  length(args(op(pdiff))) - 1)$
+
+pdiff_function(pdiff) :=
+block(
+  if not pdiff_p(pdiff) then (
+    error(pdiff, "is not a partial derivative.")),
+  apply("+", rest(args(op(pdiff)))))$
+
+normalize_stencil(stencil) :=
+/* Check whether STENCIL is well formed. Signal an adequate error otherwise. */
+block([expressions, entry_0, dimension],
+  if not (listp(stencil) and length(stencil) >= 1) then (
+    error("A stencil must be a list with at least one element, found", stencil, ".")),
+  for stencil_part in stencil do (
+    if not (listp(stencil_part) and length(stencil_part) >= 2) then (
+      error("Each part of a stencil must be of the form [<expr>, <entry_1>, <entry_2>, ..., <entry_n>], found", stencil_part, ".")),
+    for stencil_entry in rest(stencil_part) do (
+      if not (listp(stencil_entry) and length(stencil_entry) >= 1) then (
+        error("Each entry of a stencil must be of the form [<weight>, <x_1>, ..., <x_n>], found", stencil_entry, ".")))),
+  entry_0 : part(stencil, 1, 2),
+  for stencil_part in stencil do (
+    for stencil_entry in rest(stencil_part) do (
+      if length(stencil_entry) # length(entry_0) then (
+        error("The stencil entries", entry_0, "and", stencil_entry, "have a different length.")))),
+  dimension : length(entry_0) - 1,
+  for stencil_part in stencil do(
+    for pdiff in listofpdiffs(first(stencil_part)) do (
+      if pdiff_dimension(pdiff) # dimension then (
+        error("The partial derivative", pdiff, "is not of dimension", dimension, ".")))),
+  stencil)$
+
+taylor_expansion(expr, variables, order, position) :=
+/* Return a the Taylor expansion of degree ORDER for approximating
+EXPR(POSITION) at zero in VARIABLES */
+subst(
+  map(lambda([variable, offset], variable = offset), variables, position),
+  taylor(expr, variables, 0, order))$
+
+taylor_term(expr, variables, order, position) :=
+apply("+",
+  sublist(
+    args(taylor_expansion(expr, variables, order, position)),
+    lambda([term],
+      apply(max, cons(0, maplist(pdiff_degree, listofpdiffs(term)))) = order)))$
+
+stencil_error([stencil]) :=
+block([err],
+  stencil : normalize_stencil(stencil),
+  for order : 0 thru 5 do (
+    err : 0,
+    for stencil_part in stencil do block([expression, entries],
+      expression : first(stencil_part),
+      entries    :  rest(stencil_part),
+      for entry in entries do block([weight, position],
+        weight   : first(entry),
+        position :  rest(entry),
+        err : err + weight * taylor_term(expression, [x], order, position))),
+    if err # 0 then return(err)))$
+
+stencil_error([u(x), [a, -h], [b, 0], [a, h]]);
