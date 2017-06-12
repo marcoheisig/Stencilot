@@ -61,14 +61,14 @@ block(
  stencil manipulation
  *********************/
 
-defstruct(stencil(parts, funs, variables, maxdegree))$
+defstruct(stencil(parts, funs, variables, maxdegree, weights, nonweights))$
 
-stencilp(x) := not atom(x) and operatorp(x, stencil)$
+stencilp(x) := not atom(x) and operatorp(x, 'stencil)$
 
 canonicalize_stencil(expr) :=
 /* Convert a stencil to its canonical representation. Signal an adequate
 error if the stencil is not well formed. */
-block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, funs, error_term],
+block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, funs, error_term, weights, nonweights],
   /* Handle both list and structure representations */
   if stencilp(expr) then (
     stencil_parts : expr@parts)
@@ -76,7 +76,8 @@ block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, fun
     stencil_parts : expr),
   /* check list structure */
   if not (listp(stencil_parts) and length(stencil_parts) >= 1) then (
-    error("A stencil must be a list with at least one element, found", stencil, ".")),
+    print(op(expr) = stencil),
+    error("A stencil must be a list with at least one element, found", stencil_parts, ".")),
   for stencil_part in stencil_parts do (
     if not (listp(stencil_part) and length(stencil_part) >= 2) then (
       error("Each part of a stencil must be of the form [<expr>, <entry_1>, <entry_2>, ..., <entry_n>], found", stencil_part, ".")),
@@ -110,8 +111,23 @@ block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, fun
   if length(variables # 1) then (
     error("Unable to uniquely identify the derivation variables, found", variables)),
   variables : first(variables),
-  /* determine the error term */
-  new(stencil(stencil_parts, funs, variables, maxdegree)))$
+  /* determine the stencil weights as the set of free variables in the weight expressions
+  *  minus the free variables in any coordinate of any stencil_part */
+  block([pvars],
+    /* pvars are variables used to denote the position of a weight, e.g. the grid spacing. */
+    nonweights : {},
+    weights : {},
+    for stencil_part in stencil_parts do (
+      for stencil_entry in rest(stencil_part) do (
+        weights : union(weights, setify(listofvars(first(stencil_entry)))),
+        for coord in rest(stencil_entry) do (
+          nonweights : union(nonweights, setify(listofvars(coord)))))),
+    weights : setdifference(weights, nonweights)),
+  new(stencil(stencil_parts, funs, variables, maxdegree, weights, nonweights)))$
+
+/**********************************
+ stencil analysis and optimization
+ **********************************/
 
 taylor_expansion(expr, variables, order, position) :=
 /* Return a the Taylor expansion of degree ORDER for approximating
@@ -129,10 +145,10 @@ block([tterm],
       sublist(args(tterm), lambda([term], degree(term) = order))))
   elseif degree(tterm) = order then tterm else 0)$
 
-stencil_error([stencil]) :=
+stencil_error(stencil) :=
 block([err],
   stencil : canonicalize_stencil(stencil),
-  for order : 0 thru 100 do (
+  for order : 0 thru 10 do (
     err : 0,
     for stencil_part in stencil@parts do block([expression, entries],
       expression : first(stencil_part),
@@ -141,18 +157,35 @@ block([err],
         weight   : first(entry),
         position :  rest(entry),
         err : err + weight * taylor_term(expression, stencil@variables, order, position))),
+    err : factor(err),
     if err # 0 then return(err)))$
 
-block([a,b,c, s],
-  a : -1,
-  b : 2,
-  s : canonicalize_stencil([
-    [u(x), [a, -h], [b, 0], [a, h]],
-    [diff(u(x), x, 2), [h*h, 0]]]),
-  canonicalize_stencil(s));
+optimize_stencil(stencil) :=
+block([err, dofs],
+  for n : 0 thru 10 do (
+    stencil : canonicalize_stencil(stencil),
+    /* attempt to find weights such that the error is zero */
+    err : stencil_error(stencil),
+    dofs : listify(
+      setdifference(
+        setify(listofvars(err)),
+        stencil@nonweights)),
+    print(n),
+    print("Solving", err, "for", dofs),
+    /* print("Solving for", dofs), */
+    solution : solve(err, dofs),
+    print("solution:", solution),
+    if not emptyp(solution) and disjointp(stencil@funs, setify(listofvars(solution)))  then (
+      dofs : %rnum_list,
+      %rnum_list : [],
+      stencil : subst(solution, stencil@parts))
+    else (
+      return(stencil))))$
 
 block([a,b,c],
   a : -1,
   b : 2,
-  stencil_error([u(x), [a, -h], [b, 0], [a, h]], [diff(u(x), x, 2), [h*h, 0]]));
+  optimize_stencil([
+    [u(x), [a, -h], [b, 0], [a, h]],
+    [diff(u(x), x, 2), [c, 0]]]));
 
