@@ -1,5 +1,9 @@
 /* © 2017 Marco Heisig - licensed under GPLv3 */
 
+/***********************************************
+ utilities for working with partial derivatives
+ ***********************************************/
+
 load("pdiff")$
 
 pdiff_p(expr) :=
@@ -20,14 +24,32 @@ block([acc, rec],
 pdiff_degree(pdiff) :=
 block(
   if not pdiff_p(pdiff) then (
-    error(partial_derivative, "is not a partial derivative.")),
+    error(pdiff, "is not a partial derivative.")),
   apply("+", rest(args(op(pdiff)))))$
+
+degree(expr) :=
+block([degree_0],
+  degrees : maplist(pdiff_degree, listofpdiffs(expr)),
+  if emptyp(degrees) then 0
+  else (
+    degree_0 : first(degrees),
+    for degree_n in rest(degrees) do (
+      if degree_n # degree_0 then (
+        error("The derivatives", degree_0, "and", degree_n, "have different degree.",
+          "This is currently not supported."))),
+    degree_0))$
+
+pdiff_variables(pdiff) :=
+block(
+  if not pdiff_p(pdiff) then (
+    error(pdiff, "is not a partial derivative.")),
+  args(pdiff))$
 
 pdiff_dimension(pdiff) :=
 block(
   if not pdiff_p(pdiff) then (
     error(pdiff, "is not a partial derivative.")),
-  length(args(op(pdiff))) - 1)$
+  length(args(pdiff)))$
 
 pdiff_function(pdiff) :=
 block(
@@ -35,28 +57,61 @@ block(
     error(pdiff, "is not a partial derivative.")),
   apply("+", rest(args(op(pdiff)))))$
 
-normalize_stencil(stencil) :=
-/* Check whether STENCIL is well formed. Signal an adequate error otherwise. */
-block([expressions, entry_0, dimension],
-  if not (listp(stencil) and length(stencil) >= 1) then (
+/*********************
+ stencil manipulation
+ *********************/
+
+defstruct(stencil(parts, funs, variables, maxdegree))$
+
+stencilp(x) := not atom(x) and operatorp(x, stencil)$
+
+canonicalize_stencil(expr) :=
+/* Convert a stencil to its canonical representation. Signal an adequate
+error if the stencil is not well formed. */
+block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, funs, error_term],
+  /* Handle both list and structure representations */
+  if stencilp(expr) then (
+    stencil_parts : expr@parts)
+  else (
+    stencil_parts : expr),
+  /* check list structure */
+  if not (listp(stencil_parts) and length(stencil_parts) >= 1) then (
     error("A stencil must be a list with at least one element, found", stencil, ".")),
-  for stencil_part in stencil do (
+  for stencil_part in stencil_parts do (
     if not (listp(stencil_part) and length(stencil_part) >= 2) then (
       error("Each part of a stencil must be of the form [<expr>, <entry_1>, <entry_2>, ..., <entry_n>], found", stencil_part, ".")),
     for stencil_entry in rest(stencil_part) do (
       if not (listp(stencil_entry) and length(stencil_entry) >= 1) then (
         error("Each entry of a stencil must be of the form [<weight>, <x_1>, ..., <x_n>], found", stencil_entry, ".")))),
-  entry_0 : part(stencil, 1, 2),
-  for stencil_part in stencil do (
+  entry_0 : part(stencil_parts, 1, 2),
+  for stencil_part in stencil_parts do (
     for stencil_entry in rest(stencil_part) do (
       if length(stencil_entry) # length(entry_0) then (
         error("The stencil entries", entry_0, "and", stencil_entry, "have a different length.")))),
+  /* check partial derivatives and determine all functions that occur as derivatives */
   dimension : length(entry_0) - 1,
-  for stencil_part in stencil do(
+  maxdegree : 0,
+  funs : {},
+  for stencil_part in stencil_parts do (
     for pdiff in listofpdiffs(first(stencil_part)) do (
       if pdiff_dimension(pdiff) # dimension then (
-        error("The partial derivative", pdiff, "is not of dimension", dimension, ".")))),
-  stencil)$
+        error("The partial derivative", pdiff, "is not of dimension", dimension, ".")),
+      maxdegree : max(maxdegree, pdiff_degree(pdiff)),
+      funs : adjoin(first(op(pdiff)), funs))),
+  /* check that each function with derivatives uses the same variables */
+  variables : {},
+  for stencil_part in stencil_parts do (
+    block([recurse],
+      recurse(expr) := (
+        if atom(expr) then done
+        elseif member(op(expr), funs) then (
+          variables : adjoin(args(expr), variables))),
+      recurse(first(stencil_part)))),
+  if length(variables # 1) then (
+    error("Unable to uniquely identify the derivation variables, found", variables)),
+  variables : first(variables),
+  /* determine the error term */
+  new(stencil(stencil_parts, funs, variables, maxdegree)))$
 
 taylor_expansion(expr, variables, order, position) :=
 /* Return a the Taylor expansion of degree ORDER for approximating
@@ -66,32 +121,35 @@ expand(
     maplist(lambda([variable, offset], variable = offset), variables, position),
     taylor(expr, variables, 0, order)))$
 
-mindegree(expr) :=
-block([pdiffs],
-  pdiffs : listofpdiffs(expr),
-  if emptyp(pdiffs) then 0 else lmin(maplist(pdiff_degree, pdiffs)))$
-
 taylor_term(expr, variables, order, position) :=
 block([tterm],
-  tterm : taylor_expansion(expr, variables, order - mindegree(expr), position),
+  tterm : taylor_expansion(expr, variables, order - degree(expr), position),
   if not atom(tterm) and operatorp(tterm, "+") then (
     apply("+",
-      sublist(args(tterm), lambda([term], mindegree(term) = order))))
-  elseif mindegree(tterm) = order then tterm else 0)$
+      sublist(args(tterm), lambda([term], degree(term) = order))))
+  elseif degree(tterm) = order then tterm else 0)$
 
 stencil_error([stencil]) :=
 block([err],
-  stencil : normalize_stencil(stencil),
-  for order : 0 thru 10 do (
+  stencil : canonicalize_stencil(stencil),
+  for order : 0 thru 100 do (
     err : 0,
-    for stencil_part in stencil do block([expression, entries],
+    for stencil_part in stencil@parts do block([expression, entries],
       expression : first(stencil_part),
       entries    :  rest(stencil_part),
       for entry in entries do block([weight, position],
         weight   : first(entry),
         position :  rest(entry),
-        err : err + weight * taylor_term(expression, [x], order, position))),
+        err : err + weight * taylor_term(expression, stencil@variables, order, position))),
     if err # 0 then return(err)))$
+
+block([a,b,c, s],
+  a : -1,
+  b : 2,
+  s : canonicalize_stencil([
+    [u(x), [a, -h], [b, 0], [a, h]],
+    [diff(u(x), x, 2), [h*h, 0]]]),
+  canonicalize_stencil(s));
 
 block([a,b,c],
   a : -1,
