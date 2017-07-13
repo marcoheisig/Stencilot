@@ -4,6 +4,10 @@
  miscellaneous utilities
  ***********************************************/
 
+dblock(symbols, [expr]) ::= (
+  buildq([symbols : ev(symbols), expr],
+    block(symbols, splice(expr))))$
+
 free_variables(expr) := setify(listofvars(expr))$
 
 fixpoint(f, x) := block([fx],
@@ -176,7 +180,7 @@ optimize_stencil(stencil) :=
 block([improve],
   improve(stencil) := block([err, solution],
     stencil : canonicalize_stencil(stencil),
-    block([x,y,z], /* TODO */
+    dblock(stencil@variables,
       /* Nothing to improve if there are no free variables */
       if emptyp(stencil@weights) then return(stencil),
       err : stencil_error(stencil),
