@@ -1,6 +1,16 @@
 /* © 2017 Marco Heisig - licensed under GPLv3 */
 
 /***********************************************
+ miscellaneous utilities
+ ***********************************************/
+
+free_variables(expr) := setify(listofvars(expr))$
+
+fixpoint(f, x) := block([fx],
+  fx : f(x),
+  if x = fx then x else fixpoint(f, fx))$
+
+/***********************************************
  utilities for working with partial derivatives
  ***********************************************/
 
@@ -22,6 +32,7 @@ block([acc, rec],
   acc)$
 
 pdiff_degree(pdiff) :=
+/* Return the degree of the derivative of PDIFF */
 block(
   if not pdiff_p(pdiff) then (
     error(pdiff, "is not a partial derivative.")),
@@ -76,7 +87,6 @@ block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, fun
     stencil_parts : expr),
   /* check list structure */
   if not (listp(stencil_parts) and length(stencil_parts) >= 1) then (
-    print(op(expr) = stencil),
     error("A stencil must be a list with at least one element, found", stencil_parts, ".")),
   for stencil_part in stencil_parts do (
     if not (listp(stencil_part) and length(stencil_part) >= 2) then (
@@ -99,7 +109,7 @@ block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, fun
         error("The partial derivative", pdiff, "is not of dimension", dimension, ".")),
       maxdegree : max(maxdegree, pdiff_degree(pdiff)),
       funs : adjoin(first(op(pdiff)), funs))),
-  /* check that each function with derivatives uses the same variables */
+  /* check that each functions partial derivatives uses the same variables */
   variables : {},
   for stencil_part in stencil_parts do (
     block([recurse],
@@ -119,9 +129,9 @@ block([stencil_parts, expressions, entry_0, dimension, maxdegree, variables, fun
     weights : {},
     for stencil_part in stencil_parts do (
       for stencil_entry in rest(stencil_part) do (
-        weights : union(weights, setify(listofvars(first(stencil_entry)))),
+        weights : union(weights, free_variables(first(stencil_entry))),
         for coord in rest(stencil_entry) do (
-          nonweights : union(nonweights, setify(listofvars(coord)))))),
+          nonweights : union(nonweights, free_variables(coord))))),
     weights : setdifference(weights, nonweights)),
   new(stencil(stencil_parts, funs, variables, maxdegree, weights, nonweights)))$
 
@@ -146,9 +156,11 @@ block([tterm],
   elseif degree(tterm) = order then tterm else 0)$
 
 stencil_error(stencil) :=
+/* Return the stencil error in terms of the lowest nonzero
+derivatives. Higher derivatives are ignored. */
 block([err],
   stencil : canonicalize_stencil(stencil),
-  for order : 0 thru 10 do (
+  for order : 0 do (
     err : 0,
     for stencil_part in stencil@parts do block([expression, entries],
       expression : first(stencil_part),
@@ -161,31 +173,47 @@ block([err],
     if err # 0 then return(err)))$
 
 optimize_stencil(stencil) :=
-block([err, dofs],
-  for n : 0 thru 10 do (
+block([improve],
+  improve(stencil) := block([err, solution],
     stencil : canonicalize_stencil(stencil),
-    /* attempt to find weights such that the error is zero */
-    err : stencil_error(stencil),
-    dofs : listify(
-      setdifference(
-        setify(listofvars(err)),
-        stencil@nonweights)),
-    print(n),
-    print("Solving", err, "for", dofs),
-    /* print("Solving for", dofs), */
-    solution : solve(err, dofs),
-    print("solution:", solution),
-    if not emptyp(solution) and disjointp(stencil@funs, setify(listofvars(solution)))  then (
-      dofs : %rnum_list,
-      %rnum_list : [],
-      stencil : subst(solution, stencil@parts))
-    else (
-      return(stencil))))$
+    block([x,y,z], /* TODO */
+      /* Nothing to improve if there are no free variables */
+      if emptyp(stencil@weights) then return(stencil),
+      err : stencil_error(stencil),
+      /* Attempt to solve for err = 0 */
+      if verbose then print("Solving", err, "for", stencil@weights),
+      solution : solve(err, listify(stencil@weights)),
+      if not emptyp(solution) and lfreeof(listify(stencil@funs), solution) then (
+        if verbose then print("Solution:", solution),
+        return(subst(solution, stencil@parts))),
+      /* Solving for err = 0 failed, minimize instead */
+      return(
+        subst(
+          maplist(lambda([var], var = 1), stencil@weights),
+          stencil@parts)))),
+  fixpoint(improve, stencil))$
 
-block([a,b,c],
-  a : -1,
-  b : 2,
+block([a,b,c,verbose],
+  verbose : true,
   optimize_stencil([
     [u(x), [a, -h], [b, 0], [a, h]],
-    [diff(u(x), x, 2), [c, 0]]]));
+    [diff(u(x), x, 2), [1, 0]]]));
 
+
+block([a, b, c, d, e],
+  verbose : true,
+  rhs : [
+  diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
+  [1, 0, 0],
+  [d, -h,  0],
+  [d,  h,  0],
+  [d,  0,  h],
+  [d,  0, -h]],
+  lhs : [
+  u(x,y),
+  [c, 0, 0],
+  [a, -h,  0],
+  [a,  h,  0],
+  [a,  0, -h],
+  [a,  0,  h]],
+  optimize_stencil([rhs, lhs]));
