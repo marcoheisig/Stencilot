@@ -5,6 +5,7 @@
  ***********************************************/
 
 dblock(symbols, [expr]) ::= (
+/* like block, but evaluating symbols once */
   buildq([symbols : ev(symbols), expr],
     block(symbols, splice(expr))))$
 
@@ -180,7 +181,7 @@ optimize_stencil(stencil) :=
 block([improve],
   improve(stencil) := block([err, solution],
     stencil : canonicalize_stencil(stencil),
-    dblock(stencil@variables,
+    dblock(append(listify(stencil@variables), listify(stencil@funs)),
       /* Nothing to improve if there are no free variables */
       if emptyp(stencil@weights) then return(stencil),
       err : stencil_error(stencil),
@@ -191,33 +192,51 @@ block([improve],
         if verbose then print("Solution:", solution),
         return(subst(solution, stencil@parts))),
       /* Solving for err = 0 failed, minimize instead */
+      return(stencil),
       return(
         subst(
-          maplist(lambda([var], var = 1), stencil@weights),
+          maplist(lambda([var], var = 0), stencil@weights),
           stencil@parts)))),
   fixpoint(improve, stencil))$
 
-block([a,b,c,verbose],
-  verbose : true,
-  optimize_stencil([
-    [u(x), [a, -h], [b, 0], [a, h]],
-    [diff(u(x), x, 2), [1, 0]]]));
+/**********************************
+ LaTeX export for stencils
+ **********************************/
 
+texstencil(stencil) := block([stencil_part, terms, positions, weights, _, str],
+  stencil : canonicalize_stencil(stencil),
+  terms : {},
+  positions : {},
+  for stencil_part in stencil@parts do block([term, component, components],
+    term : first(stencil_part),
+    components :  rest(stencil_part),
+    terms : adjoin(term, terms),
+    for component in components do block([weight, position],
+      weight   : first(component),
+      position :  rest(component),
+      positions : adjoin(position, positions),
+      weights[term, position] : weight)),
+  /* now print the table */
+  printf(false, "\\begin{tabu}{~a}~%~a~{~%~a \\\\~}~%\\end{tabu}",
+    /* The column format specifier */
+    printf(false, "~{~a~}|~{~a~}",
+      makelist("l", length(stencil@variables)),
+      makelist("c", length(terms))),
+      /* The first row */
+    printf(false, "~{~a~} ~{~a~^ & ~} \\\\ \\hline",
+      makelist("&", length(stencil@variables)),
+      maplist(tex1, terms)),
+    /* The remaining rows */
+    maplist(
+      lambda([position],
+        printf(false, "~{~a~^&~} ~{& ~a ~}",
+          maplist(tex1, position),
+          maplist(
+            lambda([term],
+              if member([term, position], arrayinfo(weights)) then (
+                tex1(weights[term, position]))
+              else ""),
+            terms))),
+      positions)))$
 
-block([a, b, c, d, e],
-  verbose : true,
-  rhs : [
-  diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
-  [1, 0, 0],
-  [d, -h,  0],
-  [d,  h,  0],
-  [d,  0,  h],
-  [d,  0, -h]],
-  lhs : [
-  u(x,y),
-  [c, 0, 0],
-  [a, -h,  0],
-  [a,  h,  0],
-  [a,  0, -h],
-  [a,  0,  h]],
-  optimize_stencil([rhs, lhs]));
+texput(stencil, texstencil)$

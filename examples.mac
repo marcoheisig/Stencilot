@@ -1,19 +1,38 @@
-block([a,b,c],
-  return(),
-  rhs : [diff(u(x), x, 2), [1, 0], [c, -1], [c, 1]],
-  lhs : [u(x), [a, 0], [b, -1], [b, 1]],
-  optimize_stencil([lhs, rhs]));
+batchload("stencilot.mac")$
 
-/* 15 + 15 point stencil with compressed z-axis */
-block([t, phi, a,
-  r, rmc, rme, rmw, rms, rmn, rmnw, rmse, rtc, rtw, rts, rtse, rbc, rbn, rbe, rbnw,
-  mc,  me,  mw,  ms,  mn,  mnw,  mse,  tc,  tw,  ts,  tse,  bc,  bn,  be,  bnw],
-  a : 1,
-  return(),
+block([rhs, lhs],
+  rhs : [diff(u(x), x, 2), [1, 0]],
+  lhs : [u(x), [a, 0], [b, -h], [c, h]],
+  laplace1d_3pt_fd : [lhs, rhs])$
+
+block([rhs, lhs],
+  rhs : [diff(u(x), x, 2), [1, 0], [d, -h], [e, h]],
+  lhs : [u(x), [a, 0], [b, -h], [c, h]],
+  laplace1d_3pt_mehrstellen : [lhs, rhs])$
+
+block([rhs, lhs],
   rhs : [
-  diff(u(x, y, z), x, 2)
-  + diff(u(x, y, z), y, 2)
-  + diff(u(x, y, z), z, 2),
+  diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
+  [c, 0, 0],
+  [d, -h,  0],
+  [d,  h,  0],
+  [d,  0,  h],
+  [d,  0, -h]],
+  lhs : [
+  u(x,y),
+  [1, 0, 0],
+  [a, -h,  0],
+  [a,  h,  0],
+  [a,  0, -h],
+  [a,  0,  h]],
+  laplace2d_5pt_mehrstellen : [lhs, rhs])$
+
+block([rhs, lhs, zscale],
+  zscale : 1,
+  rhs : [
+  diff(u(x, y, z), x, 2) +
+  diff(u(x, y, z), y, 2) +
+  diff(u(x, y, z), z, 2),
   [rmc,   0,  0,  0],
   [rme,   0,  1,  0],
   [rmw,   0, -1,  0],
@@ -21,15 +40,14 @@ block([t, phi, a,
   [rmn,  -1,  0,  0],
   [rmnw, -1, -1,  0],
   [rmse,  1,  1,  0],
-  [rtc,   0,  0,  a],
-  [rtw,   0, -1,  a],
-  [rts,   1,  0,  a],
-  [rtse,  1,  1,  a],
-  [rbc,   0,  0, -a],
-  [rbn,  -1,  0, -a],
-  [rbe,   0,  1, -a],
-  [rbnw, -1, -1, -a]
-  ],
+  [rtc,   0,  0,  zscale],
+  [rtw,   0, -1,  zscale],
+  [rts,   1,  0,  zscale],
+  [rtse,  1,  1,  zscale],
+  [rbc,   0,  0, -zscale],
+  [rbn,  -1,  0, -zscale],
+  [rbe,   0,  1, -zscale],
+  [rbnw, -1, -1, -zscale]],
   lhs : [
   u(x, y, z),
   [mc,   0,  0,  0],
@@ -39,31 +57,15 @@ block([t, phi, a,
   [mn,  -1,  0,  0],
   [mnw, -1, -1,  0],
   [mse,  1,  1,  0],
-  [tc,   0,  0,  a],
-  [tw,   0, -1,  a],
-  [ts,   1,  0,  a],
-  [tse,  1,  1,  a],
-  [bc,   0,  0, -a],
-  [bn,  -1,  0, -a],
-  [be,   0,  1, -a],
-  [bnw, -1, -1, -a]
-  ],
-  optimize_stencil([rhs, lhs])
-  );
+  [tc,   0,  0,  zscale],
+  [tw,   0, -1,  zscale],
+  [ts,   1,  0,  zscale],
+  [tse,  1,  1,  zscale],
+  [bc,   0,  0, -zscale],
+  [bn,  -1,  0, -zscale],
+  [be,   0,  1, -zscale],
+  [bnw, -1, -1, -zscale]],
+  laplace3d_terraneo : [lhs, rhs])$
 
-block([a, b, c, d, e],
-  rhs : [
-  diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
-  [1, 0, 0],
-  [d, -h,  0],
-  [d,  h,  0],
-  [d,  0,  h],
-  [d,  0, -h]],
-  lhs : [
-  u(x,y),
-  [c, 0, 0],
-  [a, -h,  0],
-  [a,  h,  0],
-  [a,  0, -h],
-  [a,  0,  h]],
-  s : optimize_stencil([rhs, lhs]));
+
+tex(optimize_stencil(laplace1d_3pt_fd));
