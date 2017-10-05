@@ -178,7 +178,7 @@ block([err],
     if err # 0 then return(err)))$
 
 optimize_stencil(stencil) :=
-block([improve],
+block([improve, dofs],
   improve(stencil) := block([err, solution],
     stencil : canonicalize_stencil(stencil),
     dblock(append(listify(stencil@variables), listify(stencil@funs)),
@@ -192,12 +192,18 @@ block([improve],
         if verbose then print("Solution:", solution),
         return(subst(solution, stencil@parts))),
       /* Solving for err = 0 failed, minimize instead */
-      return(stencil),
-      return(
-        subst(
-          maplist(lambda([var], var = 0), stencil@weights),
-          stencil@parts)))),
-  fixpoint(improve, stencil))$
+      err : subst(
+        maplist(
+          lambda([pdiff], pdiff = 1), listofpdiffs(err)),
+        err),
+      return(stencil))),
+  stencil : fixpoint(improve, stencil),
+  /* rename all degrees of freedom to phi_N */
+  dofs : listify(stencil@weights),
+  expand(
+    subst(
+      makelist(dofs[n] = phi[n], n, length(dofs)),
+      stencil)))$
 
 /**********************************
  LaTeX export for stencils
@@ -205,6 +211,7 @@ block([improve],
 
 texstencil(stencil) := block([stencil_part, terms, positions, weights, _, str],
   stencil : canonicalize_stencil(stencil),
+  /* generate the sets of positions and terms */
   terms : {},
   positions : {},
   for stencil_part in stencil@parts do block([term, component, components],
@@ -220,11 +227,11 @@ texstencil(stencil) := block([stencil_part, terms, positions, weights, _, str],
   printf(false, "\\begin{tabu}{~a}~%~a~{~%~a \\\\~}~%\\end{tabu}",
     /* The column format specifier */
     printf(false, "~{~a~}|~{~a~}",
-      makelist("l", length(stencil@variables)),
+      makelist("r", length(stencil@variables)),
       makelist("c", length(terms))),
-      /* The first row */
-    printf(false, "~{~a~} ~{~a~^ & ~} \\\\ \\hline",
-      makelist("&", length(stencil@variables)),
+    /* The first row */
+    printf(false, "~{~a & ~} ~{~a~^ & ~}  \\\\ \\hline",
+      stencil@variables,
       maplist(tex1, terms)),
     /* The remaining rows */
     maplist(

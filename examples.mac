@@ -1,71 +1,109 @@
-batchload("stencilot.mac")$
 
-block([rhs, lhs],
-  rhs : [diff(u(x), x, 2), [1, 0]],
-  lhs : [u(x), [a, 0], [b, -h], [c, h]],
-  laplace1d_3pt_fd : [lhs, rhs])$
+laplace1d_3pt : [
+  [diff(u(x), x, 2), [c, 0]],
+  [u(x), [1, 0], [a, -h], [b, h]]]$
 
-block([rhs, lhs],
-  rhs : [diff(u(x), x, 2), [1, 0], [d, -h], [e, h]],
-  lhs : [u(x), [a, 0], [b, -h], [c, h]],
-  laplace1d_3pt_mehrstellen : [lhs, rhs])$
+laplace1d_6pt : [
+  [diff(u(x), x, 2), [c, 0]],
+  [u(x), [1, 0], [a, -h], [a, h], [b, 2*h], [b, -2*h]]]$
 
-block([rhs, lhs],
-  rhs : [
-  diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
+laplace1d_9pt : [
+  [diff(u(x), x, 2), [d, 0]],
+  [u(x), [1, 0], [a, -h], [a, h], [b, 2*h], [b, -2*h], [c, 3*h], [c, -3*h]]]$
+
+laplace1d_9pt_mehrstellen : [
+  [diff(u(x), x, 2), [d, 0], [e, -h], [e, h], [f, 2*h], [f, -2*h], [g, 3*h], [g, -3*h]],
+  [u(x), [1, 0], [a, -h], [a, h], [b, 2*h], [b, -2*h], [c, 3*h], [c, -3*h]]]$
+
+laplace1d_3pt_mehrstellen : [
+  [diff(u(x), x, 2), [c, 0], [d, -h], [e, h]],
+  [u(x), [1, 0], [a, -h], [b, h]]]$
+
+laplace2d_5pt : [
+ [diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
+  [c, 0, 0]],
+ [u(x,y),
+  [1, 0, 0],
+  [a, -h,  0],
+  [a,  h,  0],
+  [a,  0, -h],
+  [a,  0,  h]]]$
+
+laplace2d_5pt_mehrstellen : [
+ [diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
   [c, 0, 0],
   [d, -h,  0],
   [d,  h,  0],
   [d,  0,  h],
   [d,  0, -h]],
-  lhs : [
-  u(x,y),
+ [u(x,y),
   [1, 0, 0],
   [a, -h,  0],
   [a,  h,  0],
   [a,  0, -h],
-  [a,  0,  h]],
-  laplace2d_5pt_mehrstellen : [lhs, rhs])$
+  [a,  0,  h]]]$
 
-block([rhs, lhs, zscale],
+laplace2d_9pt_mehrstellen : [
+ [diff(u(x, y), x, 2) + diff(u(x, y), y, 2),
+  [c, 0, 0],
+  [d, -h,  0],
+  [d,  h,  0],
+  [d,  0,  h],
+  [d,  0, -h],
+  [e,  h,  h],
+  [e,  h, -h],
+  [e, -h,  h],
+  [e, -h, -h]],
+ [u(x,y),
+  [1, 0, 0],
+  [a, -h,  0],
+  [a,  h,  0],
+  [a,  0, -h],
+  [a,  0,  h],
+  [b,  h,  h],
+  [b,  h, -h],
+  [b, -h,  h],
+  [b, -h, -h]]]$
+
+block([zscale],
   zscale : 1,
-  rhs : [
-  diff(u(x, y, z), x, 2) +
-  diff(u(x, y, z), y, 2) +
-  diff(u(x, y, z), z, 2),
-  [rmc,   0,  0,  0],
-  [rme,   0,  1,  0],
-  [rmw,   0, -1,  0],
-  [rms,   1,  0,  0],
-  [rmn,  -1,  0,  0],
-  [rmnw, -1, -1,  0],
-  [rmse,  1,  1,  0],
-  [rtc,   0,  0,  zscale],
-  [rtw,   0, -1,  zscale],
-  [rts,   1,  0,  zscale],
-  [rtse,  1,  1,  zscale],
-  [rbc,   0,  0, -zscale],
-  [rbn,  -1,  0, -zscale],
-  [rbe,   0,  1, -zscale],
-  [rbnw, -1, -1, -zscale]],
-  lhs : [
-  u(x, y, z),
-  [mc,   0,  0,  0],
-  [me,   0,  1,  0],
-  [mw,   0, -1,  0],
-  [ms,   1,  0,  0],
-  [mn,  -1,  0,  0],
-  [mnw, -1, -1,  0],
-  [mse,  1,  1,  0],
-  [tc,   0,  0,  zscale],
-  [tw,   0, -1,  zscale],
-  [ts,   1,  0,  zscale],
-  [tse,  1,  1,  zscale],
-  [bc,   0,  0, -zscale],
-  [bn,  -1,  0, -zscale],
-  [be,   0,  1, -zscale],
-  [bnw, -1, -1, -zscale]],
-  laplace3d_terraneo : [lhs, rhs])$
+  laplace3d_terraneo : [
+   [diff(u(x, y, z), x, 2) +
+    diff(u(x, y, z), y, 2) +
+    diff(u(x, y, z), z, 2),
+    [rmc,   0,  0,  0],
+    [rme,   0,  1,  0],
+    [rmw,   0, -1,  0],
+    [rms,   1,  0,  0],
+    [rmn,  -1,  0,  0],
+    [rmnw, -1, -1,  0],
+    [rmse,  1,  1,  0],
+    [rtc,   0,  0,  zscale],
+    [rtw,   0, -1,  zscale],
+    [rts,   1,  0,  zscale],
+    [rtse,  1,  1,  zscale],
+    [rbc,   0,  0, -zscale],
+    [rbn,  -1,  0, -zscale],
+    [rbe,   0,  1, -zscale],
+    [rbnw, -1, -1, -zscale]],
+   [u(x, y, z),
+    [mc,   0,  0,  0],
+    [me,   0,  1,  0],
+    [mw,   0, -1,  0],
+    [ms,   1,  0,  0],
+    [mn,  -1,  0,  0],
+    [mnw, -1, -1,  0],
+    [mse,  1,  1,  0],
+    [tc,   0,  0,  zscale],
+    [tw,   0, -1,  zscale],
+    [ts,   1,  0,  zscale],
+    [tse,  1,  1,  zscale],
+    [bc,   0,  0, -zscale],
+    [bn,  -1,  0, -zscale],
+    [be,   0,  1, -zscale],
+    [bnw, -1, -1, -zscale]]])$
 
 
-tex(optimize_stencil(laplace1d_3pt_fd));
+tex(optimize_stencil(laplace2d_9pt_mehrstellen));
+/* tex(optimize_stencil(laplace2d_5pt_mehrstellen)); */
+/* tex(optimize_stencil(laplace3d_terraneo)); */
