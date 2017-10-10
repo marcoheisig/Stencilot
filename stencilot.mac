@@ -34,7 +34,7 @@ block([acc, rec],
     elseif pdiff_p(expr) then push(expr, acc)
     else (rec(op(expr)), for arg in args(expr) do rec(arg))),
   rec(expr),
-  acc)$
+  listify(setify(acc)))$
 
 pdiff_degree(pdiff) :=
 /* Return the degree of the derivative of PDIFF */
@@ -179,15 +179,19 @@ block([err],
 
 optimize_stencil(stencil) :=
 block([improve, dofs],
-  improve(stencil) := block([err, solution],
+  improve(stencil) := block([err, pdiffs, equations, solution],
     stencil : canonicalize_stencil(stencil),
     dblock(append(listify(stencil@variables), listify(stencil@funs)),
       /* Nothing to improve if there are no free variables */
       if emptyp(stencil@weights) then return(stencil),
-      err : stencil_error(stencil),
+      err : expand(stencil_error(stencil)),
+      pdiffs : listofpdiffs(err),
+      if emptyp(pdiffs) then (
+        equations : err) else (
+        equations : maplist(lambda([pdiff], coeff(err,pdiff)), listofpdiffs(err))),
       /* Attempt to solve for err = 0 */
-      if verbose then print("Solving", err, "for", stencil@weights),
-      solution : solve(err, listify(stencil@weights)),
+      if verbose then print("Solving", equations, "for", stencil@weights),
+      solution : solve(equations, listify(stencil@weights)),
       if not emptyp(solution) and lfreeof(listify(stencil@funs), solution) then (
         if verbose then print("Solution:", solution),
         return(subst(solution, stencil@parts))),

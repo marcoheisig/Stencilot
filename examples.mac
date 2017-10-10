@@ -82,10 +82,13 @@ block([zscale],
     [rtw,   0, -1,  zscale],
     [rts,   1,  0,  zscale],
     [rtse,  1,  1,  zscale],
+    [rtne, -1,  1,  zscale],
     [rbc,   0,  0, -zscale],
     [rbn,  -1,  0, -zscale],
     [rbe,   0,  1, -zscale],
-    [rbnw, -1, -1, -zscale]],
+    [rbnw, -1, -1, -zscale],
+    [rbsw,  1, -1, -zscale]
+    ],
    [u(x, y, z),
     [mc,   0,  0,  0],
     [me,   0,  1,  0],
@@ -94,6 +97,7 @@ block([zscale],
     [mn,  -1,  0,  0],
     [mnw, -1, -1,  0],
     [mse,  1,  1,  0],
+    [mne, -1,  1,  0],
     [tc,   0,  0,  zscale],
     [tw,   0, -1,  zscale],
     [ts,   1,  0,  zscale],
@@ -101,7 +105,9 @@ block([zscale],
     [bc,   0,  0, -zscale],
     [bn,  -1,  0, -zscale],
     [be,   0,  1, -zscale],
-    [bnw, -1, -1, -zscale]]])$
+    [bnw, -1, -1, -zscale],
+    [bsw,  1, -1, -zscale]
+    ]])$
 
 
 tex(optimize_stencil(laplace2d_9pt_mehrstellen));
